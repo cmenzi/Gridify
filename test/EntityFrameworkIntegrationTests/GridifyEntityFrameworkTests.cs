@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using Gridify;
 using Xunit;
 
@@ -19,13 +19,13 @@ public class GridifyEntityFrameworkTests : IClassFixture<DatabaseFixture>
       // System.ArgumentException: An item with the same key has already been added. Key: Param_0
 
       // arrange
-      var gq = new GridifyQuery { Filter = "name=n1|name=n2" };
+      var gq = new GridifyOffsetQuery { Filter = "name=n1|name=n2" };
 
-      _ctx.Users.Gridify(gq);
-      _ctx.Users.Gridify(gq);
+      _ctx.Users.GridifyOffset(gq);
+      _ctx.Users.GridifyOffset(gq);
 
       //act
-      var exception = Record.Exception(() => _ctx.Users.GridifyQueryable(gq));
+      var exception = Record.Exception(() => _ctx.Users.GridifyOffsetQueryable(gq));
 
       // assert
       Assert.Null(exception);
@@ -35,10 +35,10 @@ public class GridifyEntityFrameworkTests : IClassFixture<DatabaseFixture>
    public void GridifyQueryableDateTimeShouldNotThrowException()
    {
       // arrange
-      var gq = new GridifyQuery { OrderBy = "CreateDate" };
+      var gq = new GridifyOffsetQuery { OrderBy = "CreateDate" };
 
       // act
-      var exception = Record.Exception(() => _ctx.Users.GridifyQueryable(gq));
+      var exception = Record.Exception(() => _ctx.Users.GridifyOffsetQueryable(gq));
 
       // assert
       Assert.Null(exception);

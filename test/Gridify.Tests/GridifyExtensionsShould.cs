@@ -325,10 +325,10 @@ public class GridifyExtensionsShould
    [Fact]
    public void ApplyEverything_EmptyGridifyQuery()
    {
-      var gq = new GridifyQuery();
+      var gq = new GridifyOffsetQuery();
 
       var actual = _fakeRepository.AsQueryable()
-         .ApplyFilteringOrderingPaging(gq)
+         .ApplyFilteringOrderingOffsetPaging(gq)
          .ToList();
 
       var expected = _fakeRepository.Skip(0).Take(GridifyGlobalConfiguration.DefaultPageSize).ToList();
@@ -865,7 +865,7 @@ public class GridifyExtensionsShould
    [Fact]
    public void ApplyPaging_UsingDefaultValues()
    {
-      var gq = new GridifyQuery();
+      var gq = new GridifyOffsetQuery();
       var actual = _fakeRepository.AsQueryable()
          .ApplyPaging(gq)
          .ToList();
@@ -888,7 +888,7 @@ public class GridifyExtensionsShould
    [InlineData(20, 10)]
    public void ApplyPaging_UsingCustomValues(int page, int pageSize)
    {
-      var gq = new GridifyQuery { Page = page, PageSize = pageSize };
+      var gq = new GridifyOffsetQuery { Page = page, PageSize = pageSize };
       var actual = _fakeRepository.AsQueryable()
          .ApplyPaging(gq)
          .ToList();
@@ -909,7 +909,7 @@ public class GridifyExtensionsShould
    public void Gridify_ActionOverload()
    {
       var actual = _fakeRepository.AsQueryable()
-         .Gridify(q =>
+         .GridifyOffset(q =>
          {
             q.Filter = "name=John";
             q.PageSize = 13;
@@ -938,10 +938,10 @@ public class GridifyExtensionsShould
    public void ApplyOrderingAndPaging_UsingCustomValues(int page, int pageSize, bool isSortAsc)
    {
       var orderByExp = "name " + (isSortAsc ? "asc" : "desc");
-      var gq = new GridifyQuery { Page = page, PageSize = pageSize, OrderBy = orderByExp };
+      var gq = new GridifyOffsetQuery { Page = page, PageSize = pageSize, OrderBy = orderByExp };
       // actual
       var actual = _fakeRepository.AsQueryable()
-         .ApplyOrderingAndPaging(gq)
+         .ApplyOrderingAndOffsetPaging(gq)
          .ToList();
 
       // expected

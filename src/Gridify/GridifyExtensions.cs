@@ -18,7 +18,7 @@ public static partial class GridifyExtensions
    /// </summary>
    /// <param name="gridifyPagination">query and paging configuration</param>
    /// <returns>returns a IGridifyPagination with valid PageSize and Page</returns>
-   private static IGridifyPagination FixPagingData(this IGridifyPagination gridifyPagination)
+   private static IGridifyOffsetPagination FixPagingData(this IGridifyOffsetPagination gridifyPagination)
    {
       // set default for page number
       if (gridifyPagination.Page <= 0)
@@ -218,7 +218,7 @@ public static partial class GridifyExtensions
    /// <param name="mapper">this is an optional parameter to apply filtering and ordering using a custom mapping configuration</param>
    /// <typeparam name="T">type of target entity</typeparam>
    /// <returns>returns user query after applying filtering, ordering and paging </returns>
-   public static IQueryable<T> ApplyFilteringOrderingPaging<T>(this IQueryable<T> query, IGridifyQuery? gridifyQuery,
+   public static IQueryable<T> ApplyFilteringOrderingOffsetPaging<T>(this IQueryable<T> query, IGridifyOffsetQuery? gridifyQuery,
       IGridifyMapper<T>? mapper = null)
    {
       if (gridifyQuery == null) return query;
@@ -511,14 +511,14 @@ public static partial class GridifyExtensions
       return query.Skip((page - 1) * pageSize).Take(pageSize);
    }
 
-   public static IQueryable<T> ApplyPaging<T>(this IQueryable<T> query, IGridifyPagination? gridifyPagination)
+   public static IQueryable<T> ApplyPaging<T>(this IQueryable<T> query, IGridifyOffsetPagination? gridifyPagination)
    {
       if (gridifyPagination == null) return query;
       gridifyPagination = gridifyPagination.FixPagingData();
       return query.Skip((gridifyPagination.Page - 1) * gridifyPagination.PageSize).Take(gridifyPagination.PageSize);
    }
 
-   public static IQueryable<IGrouping<T2, T>> ApplyPaging<T, T2>(this IQueryable<IGrouping<T2, T>> query, IGridifyPagination? gridifyPagination)
+   public static IQueryable<IGrouping<T2, T>> ApplyPaging<T, T2>(this IQueryable<IGrouping<T2, T>> query, IGridifyOffsetPagination? gridifyPagination)
    {
       if (gridifyPagination == null) return query;
       gridifyPagination = gridifyPagination.FixPagingData();
@@ -566,7 +566,7 @@ public static partial class GridifyExtensions
       return exp;
    }
 
-   public static IQueryable<T> ApplyOrderingAndPaging<T>(this IQueryable<T> query, IGridifyQuery? gridifyQuery, IGridifyMapper<T>? mapper = null)
+   public static IQueryable<T> ApplyOrderingAndOffsetPaging<T>(this IQueryable<T> query, IGridifyOffsetQuery? gridifyQuery, IGridifyMapper<T>? mapper = null)
    {
       query = query.ApplyOrdering(gridifyQuery, mapper);
       query = query.ApplyPaging(gridifyQuery);
@@ -585,7 +585,7 @@ public static partial class GridifyExtensions
    /// <param name="mapper">this is an optional parameter to apply filtering and ordering using a custom mapping configuration</param>
    /// <typeparam name="T">type of target entity</typeparam>
    /// <returns>returns a <c>QueryablePaging<T><c/> after applying filtering, ordering and paging</returns>
-   public static QueryablePaging<T> GridifyQueryable<T>(this IQueryable<T> query, IGridifyQuery? gridifyQuery, IGridifyMapper<T>? mapper = null)
+   public static QueryablePaging<T> GridifyOffsetQueryable<T>(this IQueryable<T> query, IGridifyOffsetQuery? gridifyQuery, IGridifyMapper<T>? mapper = null)
    {
       query = query.ApplyFiltering(gridifyQuery, mapper);
       var count = query.Count();
@@ -606,9 +606,9 @@ public static partial class GridifyExtensions
    /// <typeparam name="T">type of target entity</typeparam>
    /// <returns>returns a loaded <c>Paging<T><c /> after applying filtering, ordering and paging </returns>
    /// <returns></returns>
-   public static Paging<T> Gridify<T>(this IQueryable<T> query, IGridifyQuery? gridifyQuery, IGridifyMapper<T>? mapper = null)
+   public static Paging<T> GridifyOffset<T>(this IQueryable<T> query, IGridifyOffsetQuery? gridifyQuery, IGridifyMapper<T>? mapper = null)
    {
-      var (count, queryable) = query.GridifyQueryable(gridifyQuery, mapper);
+      var (count, queryable) = query.GridifyOffsetQueryable(gridifyQuery, mapper);
       return new Paging<T>(count, queryable.ToList());
    }
 
@@ -624,11 +624,11 @@ public static partial class GridifyExtensions
    /// <typeparam name="T">type of target entity</typeparam>
    /// <returns>returns a loaded <c>Paging<T><c /> after applying filtering, ordering and paging </returns>
    /// <returns></returns>
-   public static Paging<T> Gridify<T>(this IQueryable<T> query, Action<IGridifyQuery> queryOption, IGridifyMapper<T>? mapper = null)
+   public static Paging<T> GridifyOffset<T>(this IQueryable<T> query, Action<IGridifyOffsetQuery> queryOption, IGridifyMapper<T>? mapper = null)
    {
-      var gridifyQuery = new GridifyQuery();
+      var gridifyQuery = new GridifyOffsetQuery();
       queryOption.Invoke(gridifyQuery);
-      var (count, queryable) = query.GridifyQueryable(gridifyQuery, mapper);
+      var (count, queryable) = query.GridifyOffsetQueryable(gridifyQuery, mapper);
       return new Paging<T>(count, queryable.ToList());
    }
 

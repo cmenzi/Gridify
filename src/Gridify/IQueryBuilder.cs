@@ -52,7 +52,9 @@ public interface IQueryBuilder<T>
    /// </summary>
    /// <param name="gridifyQuery">Accept IGridifyQuery so we can pass GridifyQuery object</param>
    /// <returns>returns IQueryBuilder</returns>
-   IQueryBuilder<T> AddQuery(IGridifyQuery gridifyQuery);
+   IQueryBuilder<T> AddQuery(IGridifyOffsetQuery gridifyQuery);
+
+   IQueryBuilder<T> AddQuery(IGridifyCursorQuery gridifyQuery);
 
    IQueryBuilder<T> AddOrderBy(string orderBy);
    IQueryBuilder<T> ConfigurePaging(int page, int pageSize);
@@ -197,7 +199,7 @@ public interface IQueryBuilder<T>
    /// </code>
    /// </example>
    /// <returns>A delegate as type <![CDATA[Func<IQueryable<T>,QueryablePaging<T>>]]></returns>
-   Func<IQueryable<T>,QueryablePaging<T>> BuildWithQueryablePaging();
+   Func<IQueryable<T>, QueryablePaging<T>> BuildWithQueryablePaging();
 
    /// <summary>
    /// Returns a delegate that can be used to apply the filtering, ordering and paging to a queryable.
@@ -212,7 +214,7 @@ public interface IQueryBuilder<T>
    /// </code>
    /// </example>
    /// <returns><![CDATA[ Func<IQueryable<T>,Paging<T>> ]]></returns>
-   Func<IQueryable<T>,Paging<T>> BuildWithPaging();
+   Func<IQueryable<T>, Paging<T>> BuildWithPaging();
 
    /// <summary>
    /// Returns a delegate that can be used to apply the filtering, ordering and paging to a enumerable collection.
@@ -227,5 +229,5 @@ public interface IQueryBuilder<T>
    /// </code>
    /// </example>
    /// <returns><![CDATA[ Func<IQueryable<T>,Paging<T>> ]]></returns>
-   Func<IEnumerable<T>,Paging<T>> BuildWithPagingCompiled();
+   Func<IEnumerable<T>, Paging<T>> BuildWithPagingCompiled();
 }

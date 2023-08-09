@@ -11,7 +11,8 @@ public class QueryBuilder<T> : IQueryBuilder<T>
    private readonly List<string> _conditionList = new();
    private IGridifyMapper<T>? _mapper;
    private string _orderBy = string.Empty;
-   private (int page, int pageSize)? _paging;
+   private (int page, int pageSize)? _offsetPaging;
+   private (string cursor, int limit)? _cursorPaging;
 
    /// <inheritdoc />
    public IQueryBuilder<T> UseCustomMapper(IGridifyMapper<T> mapper)
@@ -51,7 +52,7 @@ public class QueryBuilder<T> : IQueryBuilder<T>
    }
 
    /// <inheritdoc />
-   public IQueryBuilder<T> AddQuery(IGridifyQuery gridifyQuery)
+   public IQueryBuilder<T> AddQuery(IGridifyOffsetQuery gridifyQuery)
    {
       if (gridifyQuery.Filter != null)
          AddCondition(gridifyQuery.Filter);
@@ -61,6 +62,20 @@ public class QueryBuilder<T> : IQueryBuilder<T>
 
       if (gridifyQuery.PageSize == 0) gridifyQuery.PageSize = GridifyGlobalConfiguration.DefaultPageSize;
       ConfigurePaging(gridifyQuery.Page, gridifyQuery.PageSize);
+
+      return this;
+   }
+
+   public IQueryBuilder<T> AddQuery(IGridifyCursorQuery gridifyQuery)
+   {
+      if (gridifyQuery.Filter != null)
+         AddCondition(gridifyQuery.Filter);
+
+      if (!string.IsNullOrEmpty(gridifyQuery.OrderBy))
+         AddOrderBy(gridifyQuery.OrderBy!);
+
+      if (gridifyQuery.Limit == 0) gridifyQuery.Limit = GridifyGlobalConfiguration.DefaultPageSize;
+      ConfigurePaging(gridifyQuery.Cursor, gridifyQuery.Limit);
 
       return this;
    }
@@ -75,7 +90,13 @@ public class QueryBuilder<T> : IQueryBuilder<T>
    /// <inheritdoc />
    public IQueryBuilder<T> ConfigurePaging(int page, int pageSize)
    {
-      _paging = (page, pageSize);
+      _offsetPaging = (page, pageSize);
+      return this;
+   }
+
+   public IQueryBuilder<T> ConfigurePaging(string cursor, int limit)
+   {
+      _cursorPaging = (cursor, limit);
       return this;
    }
 
@@ -213,8 +234,8 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       if (!string.IsNullOrEmpty(_orderBy))
          query = query.ApplyOrdering(_orderBy, _mapper);
 
-      if (_paging.HasValue)
-         query = query.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize);
+      if (_offsetPaging.HasValue)
+         query = query.Skip(_offsetPaging.Value.page * _offsetPaging.Value.pageSize).Take(_offsetPaging.Value.pageSize);
 
       return query;
    }
@@ -237,8 +258,8 @@ public class QueryBuilder<T> : IQueryBuilder<T>
          if (!string.IsNullOrEmpty(_orderBy)) // TODO: this also should be compiled
             collection = collection.AsQueryable().ApplyOrdering(_orderBy, _mapper);
 
-         if (_paging.HasValue)
-            collection = collection.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize);
+         if (_offsetPaging.HasValue)
+            collection = collection.Skip(_offsetPaging.Value.page * _offsetPaging.Value.pageSize).Take(_offsetPaging.Value.pageSize);
 
          return collection;
       };
@@ -253,8 +274,8 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       if (!string.IsNullOrEmpty(_orderBy))
          collection = collection.AsQueryable().ApplyOrdering(_orderBy, _mapper);
 
-      if (_paging.HasValue)
-         collection = collection.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize);
+      if (_offsetPaging.HasValue)
+         collection = collection.Skip(_offsetPaging.Value.page * _offsetPaging.Value.pageSize).Take(_offsetPaging.Value.pageSize);
 
       return collection;
    }
@@ -299,8 +320,8 @@ public class QueryBuilder<T> : IQueryBuilder<T>
          var result = collection.ToList();
          var count = result.Count();
 
-         return _paging.HasValue
-            ? new Paging<T>(count, result.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize))
+         return _offsetPaging.HasValue
+            ? new Paging<T>(count, result.Skip(_offsetPaging.Value.page * _offsetPaging.Value.pageSize).Take(_offsetPaging.Value.pageSize))
             : new Paging<T>(count, result);
       };
    }
@@ -318,8 +339,8 @@ public class QueryBuilder<T> : IQueryBuilder<T>
 
       var count = query.Count();
 
-      if (_paging.HasValue)
-         query = query.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize);
+      if (_offsetPaging.HasValue)
+         query = query.Skip(_offsetPaging.Value.page * _offsetPaging.Value.pageSize).Take(_offsetPaging.Value.pageSize);
 
       return new QueryablePaging<T>(count, query);
    }

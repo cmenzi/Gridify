@@ -1,6 +1,6 @@
 namespace Gridify;
 
-public interface IGridifyPagination
+public interface IGridifyOffsetPagination
 {
    int Page { get; set; }
    int PageSize { get; set; }   
