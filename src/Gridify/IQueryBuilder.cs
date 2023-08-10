@@ -58,6 +58,7 @@ public interface IQueryBuilder<T>
 
    IQueryBuilder<T> AddOrderBy(string orderBy);
    IQueryBuilder<T> ConfigurePaging(int page, int pageSize);
+   IQueryBuilder<T> ConfigurePaging(string? cursor, int pageSize);
    IQueryBuilder<T> ConfigureDefaultMapper(GridifyMapperConfiguration mapperConfiguration);
    IQueryBuilder<T> ConfigureDefaultMapper(Action<GridifyMapperConfiguration> mapperConfiguration);
    IQueryBuilder<T> AddMap(IGMap<T> map, bool overwrite = true);

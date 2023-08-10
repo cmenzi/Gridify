@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Text;
+
 using Gridify.Syntax;
 using Xunit;
 
@@ -876,6 +878,57 @@ public class GridifyExtensionsShould
       Assert.Equal(expected.Count, actual.Count);
       Assert.Equal(expected, actual);
       Assert.True(actual.Any());
+   }
+
+
+   [Fact]
+   public void ApplyCursorPaging_UsingDefaultValues()
+   {
+      var gq = new GridifyCursorQuery();
+      var actual = _fakeRepository.AsQueryable()
+         .ApplyPaging(gq)
+         .ToList();
+
+      // just returning first page with default size
+      var expected = _fakeRepository.Take(GridifyGlobalConfiguration.DefaultPageSize).ToList();
+
+      Assert.Equal(expected.Count, actual.Count);
+      Assert.Equal(expected, actual);
+      Assert.True(actual.Any());
+   }
+
+   [Fact]
+   public void ApplyCursorPaging_UsingCursor()
+   {
+      var orderby = "name desc, id";
+      var nextToken = "Fereshte,21";
+      var cursor = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{orderby}\0{nextToken}"));
+      var gq = new GridifyCursorQuery(cursor, 20, null, orderby);
+      var actual = _fakeRepository.AsQueryable()
+         .GridifyCursor(gq);
+
+      // just returning first page with default size
+      var expected = _fakeRepository.Take(GridifyGlobalConfiguration.DefaultPageSize).ToList();
+
+      var gqNext = new GridifyCursorQuery(actual.Cursor, 20, null);
+      var next = _fakeRepository.AsQueryable()
+         .GridifyCursor(gqNext);
+   }
+
+   [Fact]
+   public void ApplyCursorPaging_UsingCursorPaging()
+   {
+      var orderby = "name desc, mydatetime desc, id";
+      var gq = new GridifyCursorQuery(null, 5, null);
+      var actual = _fakeRepository.AsQueryable()
+         .GridifyCursor(gq);
+
+      // just returning first page with default size
+      var expected = _fakeRepository.Take(GridifyGlobalConfiguration.DefaultPageSize).ToList();
+
+      var gqNext = new GridifyCursorQuery(actual.Cursor, 20, null);
+      var next = _fakeRepository.AsQueryable()
+         .GridifyCursor(gqNext);
    }
 
    [Theory]
