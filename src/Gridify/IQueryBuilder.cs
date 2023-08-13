@@ -54,8 +54,18 @@ public interface IQueryBuilder<T>
    /// <returns>returns IQueryBuilder</returns>
    IQueryBuilder<T> AddQuery(IGridifyQuery gridifyQuery);
 
+   /// <summary>
+   /// Using this method you can use GridifyCursorQuery object to add filtering and sorting and configure paging
+   /// </summary>
+   /// <param name="gridifyQuery">Accept IGridifyCursorQuery so we can pass GridifyCursorQuery object</param>
+   /// <returns>returns IQueryBuilder</returns>
+   IQueryBuilder<T> AddQuery(IGridifyCursorQuery gridifyQuery);
+
    IQueryBuilder<T> AddOrderBy(string orderBy);
    IQueryBuilder<T> ConfigurePaging(int page, int pageSize);
+
+   IQueryBuilder<T> ConfigurePaging(string? cursor, int limit);
+
    IQueryBuilder<T> ConfigureDefaultMapper(GridifyMapperConfiguration mapperConfiguration);
    IQueryBuilder<T> ConfigureDefaultMapper(Action<GridifyMapperConfiguration> mapperConfiguration);
    IQueryBuilder<T> AddMap(IGMap<T> map, bool overwrite = true);
@@ -159,6 +169,20 @@ public interface IQueryBuilder<T>
    Paging<T> BuildWithPaging(IEnumerable<T> collection);
 
    /// <summary>
+   /// Directly applies the filtering, ordering and paging to a enumerable collection.
+   /// also returns the total count of the collection.
+   ///  </summary>
+   /// <example>
+   /// <code>
+   /// var pagingResult = builder.BuildWithCursorPaging(enumerableCollection);
+   /// // or
+   /// var (count, result) = builder.BuildWithCursorPaging(enumerableCollection);
+   /// </code>
+   /// </example>
+   /// <returns><![CDATA[CursorPaging<T>]]></returns>
+   CursorPaging<T> BuildWithCursorPaging(IEnumerable<T> collection);
+
+   /// <summary>
    /// Directly applies the filtering, ordering and paging to a queryable.
    /// also load the data and returns the total count of the records.
    ///  </summary>
@@ -171,6 +195,20 @@ public interface IQueryBuilder<T>
    /// </example>
    /// <returns><![CDATA[Paging<T>]]></returns>
    Paging<T> BuildWithPaging(IQueryable<T> collection);
+
+   /// <summary>
+   /// Directly applies the filtering, ordering and paging to a queryable.
+   /// also load the data and returns the total count of the records.
+   ///  </summary>
+   /// <example>
+   /// <code>
+   /// var pagingResult = builder.BuildWithCursorPaging(queryableContext);
+   /// // or
+   /// var (count, result) = builder.BuildWithCursorPaging(queryableContext);
+   /// </code>
+   /// </example>
+   /// <returns><![CDATA[CursorPaging<T>]]></returns>
+   CursorPaging<T> BuildWithCursorPaging(IQueryable<T> collection);
 
    /// <summary>
    /// Directly applies the filtering, ordering and paging to a queryable.
@@ -187,6 +225,20 @@ public interface IQueryBuilder<T>
    QueryablePaging<T> BuildWithQueryablePaging(IQueryable<T> collection);
 
    /// <summary>
+   /// Directly applies the filtering, ordering and paging to a queryable.
+   /// also returns the total count of the records.
+   ///  </summary>
+   /// <example>
+   /// <code>
+   /// var queryablePaging = builder.BuildWithQueryableCursorPaging(queryableContext);
+   /// // or
+   /// var (count, query) = builder.BuildWithQueryableCursorPaging(queryableContext);
+   /// </code>
+   /// </example>
+   /// <returns><![CDATA[QueryableCursorPaging<T>]]></returns>
+   QueryableCursorPaging<T> BuildWithQueryableCursorPaging(IQueryable<T> collection);
+
+   /// <summary>
    /// Returns a delegate that can be used to apply the filtering, ordering and paging to a queryable.
    /// also returns the total count of the records.
    /// </summary>
@@ -197,7 +249,20 @@ public interface IQueryBuilder<T>
    /// </code>
    /// </example>
    /// <returns>A delegate as type <![CDATA[Func<IQueryable<T>,QueryablePaging<T>>]]></returns>
-   Func<IQueryable<T>,QueryablePaging<T>> BuildWithQueryablePaging();
+   Func<IQueryable<T>, QueryablePaging<T>> BuildWithQueryablePaging();
+
+   /// <summary>
+   /// Returns a delegate that can be used to apply the filtering, ordering and paging to a queryable.
+   /// also returns the total count of the records.
+   /// </summary>
+   /// <example>
+   /// <code>
+   /// var func = builder.BuildWithQueryableCursorPaging();
+   /// var query = func(queryableContext);
+   /// </code>
+   /// </example>
+   /// <returns>A delegate as type <![CDATA[Func<IQueryable<T>,QueryableCursorPaging<T>>]]></returns>
+   Func<IQueryable<T>, QueryableCursorPaging<T>> BuildWithQueryableCursorPaging();
 
    /// <summary>
    /// Returns a delegate that can be used to apply the filtering, ordering and paging to a queryable.
@@ -212,7 +277,7 @@ public interface IQueryBuilder<T>
    /// </code>
    /// </example>
    /// <returns><![CDATA[ Func<IQueryable<T>,Paging<T>> ]]></returns>
-   Func<IQueryable<T>,Paging<T>> BuildWithPaging();
+   Func<IQueryable<T>, Paging<T>> BuildWithPaging();
 
    /// <summary>
    /// Returns a delegate that can be used to apply the filtering, ordering and paging to a enumerable collection.
@@ -227,5 +292,20 @@ public interface IQueryBuilder<T>
    /// </code>
    /// </example>
    /// <returns><![CDATA[ Func<IQueryable<T>,Paging<T>> ]]></returns>
-   Func<IEnumerable<T>,Paging<T>> BuildWithPagingCompiled();
+   Func<IEnumerable<T>, Paging<T>> BuildWithPagingCompiled();
+
+   /// <summary>
+   /// Returns a delegate that can be used to apply the filtering, ordering and paging to a enumerable collection.
+   /// also load the data and returns the total count of the records.
+   ///  </summary>
+   /// <example>
+   /// <code>
+   /// var func = builder.BuildWithPagingAsEnumerable();
+   /// var pagingResult = func(enumerableCollection);
+   /// // or
+   /// var (count, result) = func(enumerableCollection);
+   /// </code>
+   /// </example>
+   /// <returns><![CDATA[ Func<IQueryable<T>,CursorPaging<T>> ]]></returns>
+   Func<IEnumerable<T>, CursorPaging<T>> BuildWithCursorPagingCompiled();
 }

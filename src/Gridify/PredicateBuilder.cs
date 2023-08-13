@@ -1,11 +1,16 @@
 using System;
 using System.Linq.Expressions;
+
 using Gridify.Syntax;
 
 namespace Gridify;
 
 public static partial class PredicateBuilder
 {
+   public static Expression<Func<T, bool>> False<T>() { return f => false; }
+
+   public static Expression<Func<T, bool>> True<T>() { return f => true; }
+
    public static Expression<Func<T, bool>> Or<T>(this Expression<Func<T, bool>> expr1, Expression<Func<T, bool>> expr2)
    {
       var parameter = Expression.Parameter(typeof(T), "__" + typeof(T).Name);

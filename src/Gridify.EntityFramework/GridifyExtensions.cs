@@ -44,6 +44,37 @@ namespace Gridify.EntityFramework
          return new Paging<T>(count, await queryable.ToListAsync(token));
       }
 
+      public static async Task<QueryablePaging<T>> GridifyCursorQueryableAsync<T>(this IQueryable<T> query, IGridifyCursorQuery gridifyQuery,
+         IGridifyMapper<T>? mapper)
+      {
+         query = query.ApplyFiltering(gridifyQuery, mapper);
+         var count = await query.CountAsync();
+         query = query.ApplyPaging(gridifyQuery);
+         return new QueryablePaging<T>(count, query);
+      }
+
+      public static async Task<Paging<T>> GridifyCursorAsync<T>(this IQueryable<T> query, IGridifyCursorQuery gridifyQuery, IGridifyMapper<T>? mapper = null)
+      {
+         var (count, queryable) = await query.GridifyCursorQueryableAsync(gridifyQuery, mapper);
+         return new Paging<T>(count, await queryable.ToListAsync());
+      }
+
+      public static async Task<QueryablePaging<T>> GridifyCursorQueryableAsync<T>(this IQueryable<T> query, IGridifyCursorQuery gridifyQuery,
+         IGridifyMapper<T>? mapper, CancellationToken token)
+      {
+         query = query.ApplyFiltering(gridifyQuery, mapper);
+         var count = await query.CountAsync(token);
+         query = query.ApplyPaging(gridifyQuery, mapper);
+         return new QueryablePaging<T>(count, query);
+      }
+
+      public static async Task<Paging<T>> GridifyCursorAsync<T>(this IQueryable<T> query, IGridifyCursorQuery gridifyQuery, CancellationToken token,
+         IGridifyMapper<T>? mapper = null)
+      {
+         var (count, queryable) = await query.GridifyCursorQueryableAsync(gridifyQuery, mapper, token);
+         return new Paging<T>(count, await queryable.ToListAsync(token));
+      }
+
       #endregion
    }
 }

@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using Gridify.Syntax;
 
 namespace Gridify
@@ -18,6 +16,12 @@ namespace Gridify
       /// if no page size is specified
       /// </summary>
       public static int DefaultPageSize { get; set; } = 20;
+
+      /// <summary>
+      /// Default cursor
+      /// if no cursor is specified
+      /// </summary>
+      public static string DefaultCursorMemberName { get; set; } = "id";
 
       /// <summary>
       /// Make Mappings case Sensitive

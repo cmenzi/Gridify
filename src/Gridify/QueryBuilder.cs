@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -12,6 +13,7 @@ public class QueryBuilder<T> : IQueryBuilder<T>
    private IGridifyMapper<T>? _mapper;
    private string _orderBy = string.Empty;
    private (int page, int pageSize)? _paging;
+   private (string? cursor, int pageSize)? _cursorPaging;
 
    /// <inheritdoc />
    public IQueryBuilder<T> UseCustomMapper(IGridifyMapper<T> mapper)
@@ -65,6 +67,20 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       return this;
    }
 
+   public IQueryBuilder<T> AddQuery(IGridifyCursorQuery gridifyQuery)
+   {
+      if (gridifyQuery.Filter != null)
+         AddCondition(gridifyQuery.Filter);
+
+      if (!string.IsNullOrEmpty(gridifyQuery.OrderBy))
+         AddOrderBy(gridifyQuery.OrderBy!);
+
+      if (gridifyQuery.PageSize == 0) gridifyQuery.PageSize = GridifyGlobalConfiguration.DefaultPageSize;
+      ConfigurePaging(gridifyQuery.Cursor, gridifyQuery.PageSize);
+
+      return this;
+   }
+
    /// <inheritdoc />
    public IQueryBuilder<T> AddOrderBy(string orderBy)
    {
@@ -76,6 +92,13 @@ public class QueryBuilder<T> : IQueryBuilder<T>
    public IQueryBuilder<T> ConfigurePaging(int page, int pageSize)
    {
       _paging = (page, pageSize);
+      return this;
+   }
+
+   /// <inheritdoc />
+   public IQueryBuilder<T> ConfigurePaging(string? cursor, int limit)
+   {
+      _cursorPaging = (cursor, limit);
       return this;
    }
 
@@ -216,6 +239,9 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       if (_paging.HasValue)
          query = query.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize);
 
+      if (_cursorPaging.HasValue)
+         query = query.Where(x => true).Take(_cursorPaging.Value.pageSize);  // TODO: Implement
+
       return query;
    }
 
@@ -240,6 +266,9 @@ public class QueryBuilder<T> : IQueryBuilder<T>
          if (_paging.HasValue)
             collection = collection.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize);
 
+         if (_cursorPaging.HasValue)
+            collection = collection.Where(x => true).Take(_cursorPaging.Value.pageSize);  // TODO: Implement
+
          return collection;
       };
    }
@@ -256,6 +285,9 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       if (_paging.HasValue)
          collection = collection.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize);
 
+      if (_cursorPaging.HasValue)
+         collection = collection.Where(x => true).Take(_cursorPaging.Value.pageSize);  // TODO: Implement
+
       return collection;
    }
 
@@ -267,6 +299,13 @@ public class QueryBuilder<T> : IQueryBuilder<T>
    }
 
    /// <inheritdoc />
+   public CursorPaging<T> BuildWithCursorPaging(IEnumerable<T> collection)
+   {
+      var query = collection.AsQueryable();
+      return BuildWithCursorPaging(query);
+   }
+
+   /// <inheritdoc />
    public Paging<T> BuildWithPaging(IQueryable<T> collection)
    {
       var (count, query) = BuildWithQueryablePaging(collection);
@@ -274,9 +313,22 @@ public class QueryBuilder<T> : IQueryBuilder<T>
    }
 
    /// <inheritdoc />
+   public CursorPaging<T> BuildWithCursorPaging(IQueryable<T> collection)
+   {
+      var (cursor, count, query) = BuildWithQueryableCursorPaging(collection);
+      return new CursorPaging<T>(cursor, count, query);
+   }
+
+   /// <inheritdoc />
    public Func<IQueryable<T>, QueryablePaging<T>> BuildWithQueryablePaging()
    {
       return BuildWithQueryablePaging;
+   }
+
+   /// <inheritdoc />
+   public Func<IQueryable<T>, QueryableCursorPaging<T>> BuildWithQueryableCursorPaging()
+   {
+      return BuildWithQueryableCursorPaging;
    }
 
    /// <inheritdoc />
@@ -305,6 +357,26 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       };
    }
 
+   public Func<IEnumerable<T>, CursorPaging<T>> BuildWithCursorPagingCompiled()
+   {
+      var compiled = BuildFilteringExpression().Compile();
+      return collection =>
+      {
+         if (_conditionList.Count > 0)
+            collection = collection.Where(compiled);
+
+         if (!string.IsNullOrEmpty(_orderBy)) // TODO: this also should be compiled
+            collection = collection.AsQueryable().ApplyOrdering(_orderBy, _mapper);
+
+         var result = collection.ToList();
+         var count = result.Count();
+         var cursor = ""; // TODO: Implement
+
+         return _cursorPaging.HasValue
+            ? new CursorPaging<T>(cursor, count, result.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize)) // TODO: Implement
+            : new CursorPaging<T>(cursor, count, result);
+      };
+   }
 
    /// <inheritdoc />
    public QueryablePaging<T> BuildWithQueryablePaging(IQueryable<T> collection)
@@ -322,6 +394,25 @@ public class QueryBuilder<T> : IQueryBuilder<T>
          query = query.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize);
 
       return new QueryablePaging<T>(count, query);
+   }
+
+   /// <inheritdoc />
+   public QueryableCursorPaging<T> BuildWithQueryableCursorPaging(IQueryable<T> collection)
+   {
+      var query = collection;
+      if (_conditionList.Count > 0)
+         query = query.Where(BuildFilteringExpression());
+
+      if (!string.IsNullOrEmpty(_orderBy))
+         query = query.ApplyOrdering(_orderBy, _mapper);
+
+      var count = query.Count();
+      var cursor = ""; // TODO: Implement
+
+      if (_cursorPaging.HasValue)
+         query = query.Skip(_paging.Value.page * _paging.Value.pageSize).Take(_paging.Value.pageSize);
+
+      return new QueryableCursorPaging<T>(cursor, count, query);
    }
 
    private Expression<Func<T, bool>> ConvertConditionToExpression(string condition)

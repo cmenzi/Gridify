@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Text;
+
 using Gridify.Syntax;
 using Xunit;
 
@@ -878,6 +880,22 @@ public class GridifyExtensionsShould
       Assert.True(actual.Any());
    }
 
+   [Fact]
+   public void ApplyCursorPaging_UsingDefaultValues()
+   {
+      var gq = new GridifyCursorQuery();
+      var actual = _fakeRepository.AsQueryable()
+         .ApplyPaging(gq)
+         .ToList();
+
+      // just returning first page with default size
+      var expected = _fakeRepository.Take(GridifyGlobalConfiguration.DefaultPageSize).ToList();
+
+      Assert.Equal(expected.Count, actual.Count);
+      Assert.Equal(expected, actual);
+      Assert.True(actual.Any());
+   }
+
    [Theory]
    [InlineData(1, 5)]
    [InlineData(2, 5)]
@@ -901,6 +919,35 @@ public class GridifyExtensionsShould
       Assert.Equal(expected, actual);
    }
 
+   [Theory]
+   [InlineData(null, 5)]
+   [InlineData(6, 5)]
+   [InlineData(null, 10)]
+   [InlineData(10, 3)]
+   [InlineData(16, 3)]
+   [InlineData(null, 15)]
+   [InlineData(28, 10)]
+   public void ApplyCursorPaging_UsingCustomValues(int? id, int pageSize)
+   {
+      var cursor = id.HasValue ? Convert.ToBase64String(Encoding.UTF8.GetBytes($"id\0{id}")) : null;
+
+      var gq = new GridifyCursorQuery { Cursor = cursor, PageSize = pageSize };
+      var actual = _fakeRepository.AsQueryable()
+         .ApplyPaging(gq)
+         .ToList();
+
+      var expected = _fakeRepository.AsEnumerable();
+      if (id.HasValue)
+      {
+         expected = expected.Where(x => x.Id > id);
+      }
+
+      expected = expected.Take(pageSize).ToList();
+
+      Assert.Equal(expected.Count(), actual.Count);
+      Assert.Equal(expected, actual);
+   }
+
    #endregion
 
    #region "Other"
@@ -920,6 +967,28 @@ public class GridifyExtensionsShould
       var totalItems = query.Count();
       var items = query.Skip(-2).Take(15).ToList();
       var expected = new Paging<TestClass> { Data = items, Count = totalItems };
+
+      Assert.Equal(expected.Count, actual.Count);
+      Assert.Equal(expected.Data.Count(), actual.Data.Count());
+      Assert.True(actual.Data.Any());
+      Assert.Equal(expected.Data.First().Id, actual.Data.First().Id);
+   }
+
+   [Fact]
+   public void GridifyCursor_ActionOverload()
+   {
+      var actual = _fakeRepository.AsQueryable()
+         .GridifyCursor(q =>
+         {
+            q.Filter = "name=John";
+            q.PageSize = 13;
+            q.OrderBy = "name desc";
+         });
+
+      var query = _fakeRepository.AsQueryable().Where(q => q.Name == "John").OrderByDescending(q => q.Name);
+      var totalItems = query.Count();
+      var items = query.Skip(-2).Take(15).ToList();
+      var expected = new CursorPaging<TestClass> { Data = items, Count = totalItems };
 
       Assert.Equal(expected.Count, actual.Count);
       Assert.Equal(expected.Data.Count(), actual.Data.Count());
@@ -954,6 +1023,44 @@ public class GridifyExtensionsShould
       var expected = expectedQuery.Skip(skip).Take(pageSize).ToList();
 
       Assert.Equal(expected.Count, actual.Count);
+      Assert.Equal(expected.FirstOrDefault()?.Id, actual.FirstOrDefault()?.Id);
+      Assert.Equal(expected.LastOrDefault()?.Id, actual.LastOrDefault()?.Id);
+   }
+
+   [Theory]
+   [InlineData(null, 5, true)]
+   [InlineData(6, 5, false)]
+   [InlineData(null, 10, true)]
+   [InlineData(10, 3, false)]
+   [InlineData(13, 3, true)]
+   [InlineData(null, 15, false)]
+   [InlineData(28, 10, true)]
+   public void ApplyOrderingAndCursorPaging_UsingCustomValues(int? id, int pageSize, bool isSortAsc)
+   {
+      var cursor = id.HasValue ? Convert.ToBase64String(Encoding.UTF8.GetBytes($"id\0{id}")) : null;
+
+      var orderByExp = "name " + (isSortAsc ? "asc" : "desc");
+      var gq = new GridifyCursorQuery { Cursor = cursor, PageSize = pageSize, OrderBy = orderByExp };
+      // actual
+      var actual = _fakeRepository.AsQueryable()
+         .ApplyOrderingAndPaging(gq)
+         .ToList();
+
+      // expected
+      var expectedQuery = _fakeRepository.AsQueryable();
+      if (isSortAsc)
+         expectedQuery = expectedQuery.OrderBy(q => q.Name);
+      else
+         expectedQuery = expectedQuery.OrderByDescending(q => q.Name);
+
+      if (id.HasValue)
+      {
+         expectedQuery = expectedQuery.Where(x => x.Id > id);
+      }
+
+      var expected = expectedQuery.Take(pageSize).ToList();
+
+      Assert.Equal(expected.Count(), actual.Count);
       Assert.Equal(expected.FirstOrDefault()?.Id, actual.FirstOrDefault()?.Id);
       Assert.Equal(expected.LastOrDefault()?.Id, actual.LastOrDefault()?.Id);
    }

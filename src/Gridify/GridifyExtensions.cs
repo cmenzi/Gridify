@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
+using System.Text;
+
 using Gridify.Syntax;
 
 [assembly: InternalsVisibleTo("Gridify.EntityFramework")]
@@ -31,6 +33,27 @@ public static partial class GridifyExtensions
       return gridifyPagination;
    }
 
+   /// <summary>
+   /// Set default <c>Page<c /> number and <c>PageSize<c /> if its not already set in gridifyQuery
+   /// </summary>
+   /// <param name="gridifyPagination">query and paging configuration</param>
+   /// <returns>returns a IGridifyPagination with valid PageSize and Page</returns>
+   private static IGridifyCursorPagination FixPagingData(this IGridifyCursorPagination gridifyPagination)
+   {
+      // set default for PageSize
+      if (gridifyPagination.PageSize <= 0)
+         gridifyPagination.PageSize = GridifyGlobalConfiguration.DefaultPageSize;
+
+      if (string.IsNullOrEmpty(gridifyPagination.OrderBy))
+         gridifyPagination.OrderBy = GridifyGlobalConfiguration.DefaultCursorMemberName;
+
+      var orderings = ParseOrderings(gridifyPagination.OrderBy!).ToList();
+      if (!orderings.Any(x => x.MemberName.Equals(GridifyGlobalConfiguration.DefaultCursorMemberName, StringComparison.OrdinalIgnoreCase)))
+         gridifyPagination.OrderBy = gridifyPagination.OrderBy + "," + GridifyGlobalConfiguration.DefaultCursorMemberName;
+
+      return gridifyPagination;
+   }
+
    #endregion
 
    public static Expression<Func<T, bool>> GetFilteringExpression<T>(this IGridifyFiltering gridifyFiltering, IGridifyMapper<T>? mapper = null)
@@ -39,6 +62,22 @@ public static partial class GridifyExtensions
          throw new GridifyQueryException("Filter is not defined");
 
       var syntaxTree = SyntaxTree.Parse(gridifyFiltering.Filter!, GridifyGlobalConfiguration.CustomOperators.Operators);
+
+      if (syntaxTree.Diagnostics.Any())
+         throw new GridifyFilteringException(syntaxTree.Diagnostics.Last()!);
+
+      mapper = mapper.FixMapper(syntaxTree);
+      var (queryExpression, _) = ExpressionToQueryConvertor.GenerateQuery(syntaxTree.Root, mapper);
+      if (queryExpression == null) throw new GridifyQueryException("Can not create expression with current data");
+      return queryExpression;
+   }
+
+   private static Expression<Func<T, bool>> GetCursorExpression<T>(string filter, IGridifyMapper<T>? mapper = null)
+   {
+      if (string.IsNullOrWhiteSpace(filter))
+         throw new GridifyQueryException("Filter is not defined");
+
+      var syntaxTree = SyntaxTree.Parse(filter, GridifyGlobalConfiguration.CustomOperators.Operators);
 
       if (syntaxTree.Diagnostics.Any())
          throw new GridifyFilteringException(syntaxTree.Diagnostics.Last()!);
@@ -525,6 +564,61 @@ public static partial class GridifyExtensions
       return query.Skip((gridifyPagination.Page - 1) * gridifyPagination.PageSize).Take(gridifyPagination.PageSize);
    }
 
+   public static IQueryable<T> ApplyPaging<T>(this IQueryable<T> query, IGridifyCursorPagination? gridifyPagination, IGridifyMapper<T>? mapper = null)
+   {
+      if (gridifyPagination == null) return query;
+      gridifyPagination = gridifyPagination.FixPagingData();
+      query = query.ApplyOrdering(gridifyPagination, mapper);
+
+      if (string.IsNullOrEmpty(gridifyPagination.Cursor))
+         return query.Take(gridifyPagination.PageSize);
+
+      var predicate = PredicateBuilder.False<T>();
+      var cursor = new GridifyCursor(gridifyPagination.Cursor);
+      var orderings = ParseOrderings(cursor.OrderBy).ToList();
+      var nextTokens = cursor.NextToken.Split(',');
+      /* 
+         SELECT * FROM dbo.Books
+         WHERE false
+            OR (average_rating > @lastAverageRating) 
+            OR (average_rating = @lastAverageRating AND published > @lastPublished) 
+            OR (average_rating = @lastAverageRating AND published = @lastPublished AND id > @lastId)
+         ORDER BY average_rating, published, id
+         FETCH NEXT @limit ROWS ONLY; 
+      */
+
+      for (var i = 0; i < orderings.Count; i++)
+      {
+         var currentOperator = ">";
+         var currentExpression = GetCursorExpression($"{orderings[i].MemberName} {currentOperator} {nextTokens[i]}", mapper);
+
+         if (i > 0)
+         {
+            var previousOperator = "=";
+            for (var j = 0; j < i; j++)
+            {
+               var previousExpression = GetCursorExpression($"{orderings[j].MemberName} {previousOperator} {nextTokens[j]}", mapper);
+               currentExpression = previousExpression.And(currentExpression);
+            }
+         }
+
+         predicate = predicate.Or(currentExpression);
+      }
+
+
+      return query.Where(predicate).Take(gridifyPagination.PageSize);
+   }
+
+   public static IQueryable<IGrouping<T2, T>> ApplyPaging<T, T2>(this IQueryable<IGrouping<T2, T>> query, IGridifyCursorPagination? gridifyPagination, IGridifyMapper<T>? mapper = null)
+   {
+      if (gridifyPagination == null) return query;
+      gridifyPagination = gridifyPagination.FixPagingData();
+      // TODO: Implement
+      //query.ApplyOrdering(gridifyPagination, mapper);
+      //return query.Skip((gridifyPagination.Page - 1) * gridifyPagination.PageSize).Take(gridifyPagination.PageSize);
+      return query;
+   }
+
    public static IQueryable<T> ApplyFiltering<T>(this IQueryable<T> query, IGridifyFiltering? gridifyFiltering, IGridifyMapper<T>? mapper = null)
    {
       if (gridifyFiltering == null) return query;
@@ -573,6 +667,12 @@ public static partial class GridifyExtensions
       return query;
    }
 
+   public static IQueryable<T> ApplyOrderingAndPaging<T>(this IQueryable<T> query, IGridifyCursorQuery? gridifyQuery, IGridifyMapper<T>? mapper = null)
+   {
+      query = query.ApplyPaging(gridifyQuery);
+      return query;
+   }
+
    /// <summary>
    /// gets a query or collection,
    /// adds filtering,
@@ -592,6 +692,35 @@ public static partial class GridifyExtensions
       query = query.ApplyOrdering(gridifyQuery, mapper);
       query = query.ApplyPaging(gridifyQuery);
       return new QueryablePaging<T>(count, query);
+   }
+
+   /// <summary>
+   /// gets a query or collection,
+   /// adds filtering,
+   /// Get totalItems Count
+   /// adds ordering and paging
+   /// return QueryablePaging with TotalItems and an IQueryable Query
+   /// </summary>
+   /// <param name="query">the original(target) queryable object</param>
+   /// <param name="gridifyQuery">the configuration to apply paging, filtering and ordering</param>
+   /// <param name="mapper">this is an optional parameter to apply filtering and ordering using a custom mapping configuration</param>
+   /// <typeparam name="T">type of target entity</typeparam>
+   /// <returns>returns a <c>QueryablePaging<T><c/> after applying filtering, ordering and paging</returns>
+   public static QueryableCursorPaging<T> GridifyCursorQueryable<T>(this IQueryable<T> query, IGridifyCursorQuery? gridifyQuery, IGridifyMapper<T>? mapper = null)
+   {
+      query = query.ApplyFiltering(gridifyQuery, mapper);
+      var count = query.Count();
+      query = query.ApplyPaging(gridifyQuery, mapper);
+      var lastRecord = query.Last();
+
+      var orderings = ParseOrderings(gridifyQuery.OrderBy).ToList();
+      var orderingExpressions = gridifyQuery.GetOrderingExpressions(mapper).ToList();
+
+      var orderingCursorPart = string.Join(",", orderings.Select(x => $"{x.MemberName}"));
+      var nextTokenCursorPart = string.Join(",", orderingExpressions.Select(x => x.Compile()(lastRecord)));
+      var cursor = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{orderingCursorPart}\0{nextTokenCursorPart}"));
+
+      return new QueryableCursorPaging<T>(cursor, count, query);
    }
 
    /// <summary>
@@ -630,6 +759,44 @@ public static partial class GridifyExtensions
       queryOption.Invoke(gridifyQuery);
       var (count, queryable) = query.GridifyQueryable(gridifyQuery, mapper);
       return new Paging<T>(count, queryable.ToList());
+   }
+
+   /// <summary>
+   /// gets a query or collection,
+   /// adds filtering, ordering and paging
+   /// loads filtered and sorted data
+   /// return pagination ready result
+   /// </summary>
+   /// <param name="query">the original(target) queryable object</param>
+   /// <param name="gridifyQuery">the configuration to apply paging, filtering and ordering</param>
+   /// <param name="mapper">this is an optional parameter to apply filtering and ordering using a custom mapping configuration</param>
+   /// <typeparam name="T">type of target entity</typeparam>
+   /// <returns>returns a loaded <c>Paging<T><c /> after applying filtering, ordering and paging </returns>
+   /// <returns></returns>
+   public static CursorPaging<T> GridifyCursor<T>(this IQueryable<T> query, IGridifyCursorQuery? gridifyQuery, IGridifyMapper<T>? mapper = null)
+   {
+      var (cursor, count, queryable) = query.GridifyCursorQueryable(gridifyQuery, mapper);
+      return new CursorPaging<T>(cursor, count, queryable.ToList());
+   }
+
+   /// <summary>
+   /// gets a query or collection,
+   /// adds filtering, ordering and paging
+   /// loads filtered and sorted data
+   /// return pagination ready result
+   /// </summary>
+   /// <param name="query">the original(target) queryable object</param>
+   /// <param name="queryOption">the configuration to apply paging, filtering and ordering</param>
+   /// <param name="mapper">this is an optional parameter to apply filtering and ordering using a custom mapping configuration</param>
+   /// <typeparam name="T">type of target entity</typeparam>
+   /// <returns>returns a loaded <c>Paging<T><c /> after applying filtering, ordering and paging </returns>
+   /// <returns></returns>
+   public static CursorPaging<T> GridifyCursor<T>(this IQueryable<T> query, Action<IGridifyCursorQuery> queryOption, IGridifyMapper<T>? mapper = null)
+   {
+      var gridifyQuery = new GridifyCursorQuery();
+      queryOption.Invoke(gridifyQuery);
+      var (cursor, count, queryable) = query.GridifyCursorQueryable(gridifyQuery, mapper);
+      return new CursorPaging<T>(cursor, count, queryable.ToList());
    }
 
    #endregion
